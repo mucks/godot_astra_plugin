@@ -1,0 +1,8 @@
+[gd_resource type="NativeScript" load_steps=2 format=2]
+
+[ext_resource path="res://addons/godot_astra_plugin/gdnative/libs/libgodot_astra_plugin_rs.tres" type="GDNativeLibrary" id=1]
+
+[resource]
+resource_name = "AstraController"
+class_name = "AstraController"
+library = ExtResource( 1 )
