@@ -1,12 +1,8 @@
 use crate::astra;
-use crate::util::{self, astra_vec2_to_gd_vec2, astra_vec3_to_gd_vec3};
-use gdnative::*;
-
-use base64::encode;
-
+use crate::util::{astra_vec2_to_gd_vec2, astra_vec3_to_gd_vec3};
 use astra::astra_bindings::astra_reader_frame_t;
-
-use serde_json;
+use base64::encode;
+use gdnative::*;
 
 pub struct AstraController {
     reader: astra::astra_reader_t,
@@ -38,16 +34,6 @@ impl NativeClass for AstraController {
                 usage: init::PropertyUsage::DEFAULT,
             }],
         });
-        builder.add_signal(init::Signal {
-            name: "new_body_json",
-            args: &[init::SignalArgument {
-                name: "body_json",
-                default: Variant::from(""),
-                hint: init::PropertyHint::None,
-                usage: init::PropertyUsage::DEFAULT,
-            }],
-        });
-
         // This event will cause editor crash sometimes
         builder.add_signal(init::Signal {
             name: "new_color_byte_array",
@@ -117,7 +103,7 @@ impl AstraController {
 
         if let Some(mut frame) = astra::get_frame(self.reader) {
             self.handle_body_frame(&mut owner, frame);
-            self.handle_color_frame(&mut owner, frame);
+            //self.handle_color_frame(&mut owner, frame);
 
             astra::close_frame(&mut frame);
         }
@@ -127,6 +113,7 @@ impl AstraController {
     unsafe fn _process(&mut self, mut owner: Node, delta: f64) {}
 
     // I'm using base64 here because the ByteArray from godot was causing crashes
+    // TODO: this is not working on android for some reason
     unsafe fn handle_color_frame(&mut self, owner: &mut Node, frame: astra_reader_frame_t) {
         let color_frame = astra::get_color_frame(frame);
         let color_frame_index = astra::get_color_frame_index(color_frame);
@@ -152,22 +139,7 @@ impl AstraController {
 
         if body_frame_index != self.body_frame_index {
             let body_list = astra::get_body_list(body_frame);
-            let t = std::time::SystemTime::now();
-
-            let json_data = body_list_to_vec_body(&body_list);
-            if let Ok(elapsed) = t.elapsed() {
-                //godot_print!("body_json: {}", elapsed.as_micros());
-            }
-            owner.emit_signal(
-                GodotString::from_str("new_body_json"),
-                &[Variant::from(&json_data)],
-            );
-
-            let time = std::time::SystemTime::now();
             let godot_bodies = body_list_to_variant_array(&body_list);
-            if let Ok(elapsed) = time.elapsed() {
-                //godot_print!("body_hash: {}", elapsed.as_micros());
-            }
 
             owner.emit_signal(
                 GodotString::from_str("new_body_list"),
@@ -177,68 +149,6 @@ impl AstraController {
 
         self.body_frame_index = body_frame_index;
     }
-}
-
-use serde::Serialize;
-use std::collections::HashMap;
-
-#[derive(Serialize)]
-pub struct MyVector2 {
-    pub x: f32,
-    pub y: f32,
-}
-
-#[derive(Serialize)]
-pub struct MyVector3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-#[derive(Serialize)]
-pub struct Joint {
-    pub joint_type: u8,
-    pub status: u8,
-    pub depth_position: MyVector2,
-    pub world_position: MyVector3,
-}
-
-#[derive(Serialize)]
-pub struct Body {
-    pub id: u8,
-    pub status: u8,
-    pub joints: HashMap<u8, Joint>,
-    pub center_off_mass: MyVector3,
-}
-
-// takes an average of 30 microseconds to complete, testing showed it takes 30ms less than other option
-fn body_list_to_vec_body(body_list: &astra::astra_bindings::_astra_body_list) -> String {
-    let mut bodies = Vec::new();
-    for i in 0..body_list.count {
-        let body = body_list.bodies[i as usize];
-
-        let mut joints = HashMap::new();
-
-        for joint in body.joints.iter() {
-            joints.insert(
-                joint.type_,
-                Joint {
-                    joint_type: joint.type_,
-                    status: joint.status,
-                    depth_position: util::astra_vec2_to_my_vec2(&joint.depthPosition),
-                    world_position: util::astra_vec3_to_my_vec3(&joint.worldPosition),
-                },
-            );
-        }
-
-        bodies.push(Body {
-            id: body.id,
-            status: body.status,
-            joints: joints,
-            center_off_mass: util::astra_vec3_to_my_vec3(&body.centerOfMass),
-        });
-    }
-    serde_json::to_string(&bodies).unwrap()
 }
 
 // average of 50usecs, this method is faster than json since json is slower in godot
