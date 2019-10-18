@@ -1,7 +1,7 @@
 use crate::astra;
 use crate::util::{astra_vec2_to_gd_vec2, astra_vec3_to_gd_vec3};
 use astra::astra_bindings::astra_reader_frame_t;
-use base64::encode;
+use gdnative::init::{Property, PropertyHint, PropertyUsage};
 use gdnative::*;
 
 use num_cpus;
@@ -10,7 +10,9 @@ pub struct AstraController {
     reader: astra::astra_reader_t,
     body_frame_index: i32,
     color_frame_index: i32,
-    color_byte_array: ByteArray,
+    color_fps: u32,
+    body_fps: u32,
+    rayon_time_diffs: Vec<i32>,
 }
 
 unsafe impl Send for AstraController {}
@@ -28,6 +30,32 @@ impl NativeClass for AstraController {
     }
 
     fn register_properties(builder: &init::ClassBuilder<Self>) {
+        builder.add_property(Property {
+            name: "body_fps",
+            default: 30,
+            hint: PropertyHint::Range {
+                range: 0.0..60.0,
+                step: 1.0,
+                slider: true,
+            },
+            getter: |this: &AstraController| this.body_fps,
+            setter: |this: &mut AstraController, v| this.body_fps = v,
+            usage: PropertyUsage::DEFAULT,
+        });
+
+        builder.add_property(Property {
+            name: "color_fps",
+            default: 30,
+            hint: PropertyHint::Range {
+                range: 0.0..60.0,
+                step: 1.0,
+                slider: true,
+            },
+            getter: |this: &AstraController| this.color_fps,
+            setter: |this: &mut AstraController, v| this.color_fps = v,
+            usage: PropertyUsage::DEFAULT,
+        });
+
         builder.add_signal(init::Signal {
             name: "new_body_list",
             args: &[init::SignalArgument {
@@ -72,41 +100,70 @@ impl AstraController {
             reader: astra::init_sensor(),
             body_frame_index: -1,
             color_frame_index: -1,
-            color_byte_array: ByteArray::new(),
+            color_fps: 30,
+            body_fps: 30,
+            rayon_time_diffs: Vec::new(),
         }
     }
-    // In order to make a method known to Godot, the #[export] attribute has to be used.
-    // In Godot script-classes do not actually inherit the parent class.
-    // Instead they are"attached" to the parent object, called the "owner".
-    // The owner is passed to every single exposed method.
     #[export]
-    unsafe fn _ready(&self, mut owner: Node) {
-        astra::start_body_stream(self.reader);
-        astra::start_color_stream(self.reader);
+    unsafe fn _ready(&mut self, owner: Node) {
+        self.start_body_stream(owner);
+        self.start_color_stream(owner);
+    }
 
-        let mut timer = Timer::new();
-        timer
+    unsafe fn start_body_stream(&mut self, mut owner: Node) {
+        astra::start_body_stream(self.reader);
+
+        let mut body_timer = Timer::new();
+        body_timer
             .connect(
                 "timeout".into(),
                 Some(*owner),
-                "astra_process".into(),
+                "update_body".into(),
                 VariantArray::new(),
                 0,
             )
             .unwrap();
 
-        let fps = 60.0;
-        timer.set_wait_time(1.0 / fps);
-        owner.add_child(Some(*timer), false);
-        timer.start(0.0);
+        body_timer.set_wait_time(1.0 / self.body_fps as f64);
+        owner.add_child(Some(*body_timer), false);
+        body_timer.start(0.0);
+    }
+
+    unsafe fn start_color_stream(&mut self, mut owner: Node) {
+        astra::start_color_stream(self.reader);
+
+        let mut color_timer = Timer::new();
+        color_timer
+            .connect(
+                "timeout".into(),
+                Some(*owner),
+                "update_color".into(),
+                VariantArray::new(),
+                0,
+            )
+            .unwrap();
+
+        color_timer.set_wait_time(1.0 / self.color_fps as f64);
+        owner.add_child(Some(*color_timer), false);
+        color_timer.start(0.0);
     }
 
     #[export]
-    unsafe fn astra_process(&mut self, mut owner: Node) {
+    unsafe fn update_body(&mut self, mut owner: Node) {
         astra::update();
 
         if let Some(mut frame) = astra::get_frame(self.reader) {
             self.handle_body_frame(&mut owner, frame);
+
+            astra::close_frame(&mut frame);
+        }
+    }
+    #[export]
+    unsafe fn update_color(&mut self, mut owner: Node) {
+        astra::update();
+
+        if let Some(mut frame) = astra::get_frame(self.reader) {
             self.handle_color_frame(&mut owner, frame);
 
             astra::close_frame(&mut frame);
@@ -114,7 +171,7 @@ impl AstraController {
     }
 
     #[export]
-    unsafe fn _process(&mut self, mut owner: Node, delta: f64) {}
+    unsafe fn _process(&mut self, mut _owner: Node, _delta: f64) {}
 
     // I'm using base64 here because the ByteArray from godot was causing crashes
     unsafe fn handle_color_frame(&mut self, owner: &mut Node, frame: astra_reader_frame_t) {
@@ -124,29 +181,23 @@ impl AstraController {
 
         if color_frame_index != self.color_frame_index {
             let (width, height, color_data) = astra::get_color_bytes(color_frame);
+            let rayon_time = std::time::SystemTime::now();
 
-            let mut color_byte_array = ByteArray::new();
-            let color_data_len = color_data.len();
-            let data_chunks = color_data.chunks(color_data_len / thread_count);
-            let mut handles = Vec::new();
+            let _ = color_data_to_color_byte_array_rayon(&color_data, thread_count);
 
-            for data_chunk_ref in data_chunks {
-                let data_chunk = data_chunk_ref.to_owned();
+            let rayon_time_mcs = rayon_time.elapsed().unwrap().as_micros() as i32;
 
-                handles.push(std::thread::spawn(move || {
-                    let mut byte_array = ByteArray::new();
-                    byte_array.resize(data_chunk.len() as i32);
+            let without_rayon_time = std::time::SystemTime::now();
+            let color_byte_array = color_data_to_color_byte_array(&color_data, thread_count);
+            let without_rayon_time_mcs = without_rayon_time.elapsed().unwrap().as_micros() as i32;
 
-                    for i in 0..data_chunk.len() {
-                        byte_array.set(i as i32, data_chunk[i]);
-                    }
+            self.rayon_time_diffs
+                .push(rayon_time_mcs - without_rayon_time_mcs);
 
-                    byte_array
-                }));
-            }
-            for handle in handles {
-                color_byte_array.push_array(&handle.join().unwrap());
-            }
+            godot_print!(
+                "time diff avg: {}",
+                self.rayon_time_diffs.iter().sum::<i32>()
+            );
 
             owner.emit_signal(
                 GodotString::from_str("new_color_byte_array"),
@@ -176,6 +227,58 @@ impl AstraController {
 
         self.body_frame_index = body_frame_index;
     }
+}
+
+use rayon::prelude::*;
+
+fn color_data_to_color_byte_array_rayon(color_data: &Vec<u8>, thread_count: usize) -> ByteArray {
+    let mut color_byte_array = ByteArray::new();
+    let color_data_len = color_data.len();
+    let data_chunks: Vec<&[u8]> = color_data.chunks(color_data_len / thread_count).collect();
+
+    data_chunks
+        .par_iter()
+        .map(|chunk| {
+            let mut byte_array = ByteArray::new();
+            byte_array.resize(chunk.len() as i32);
+
+            for i in 0..chunk.len() {
+                byte_array.set(i as i32, chunk[i]);
+            }
+            byte_array
+        })
+        .collect::<Vec<ByteArray>>()
+        .iter()
+        .for_each(|byte_array| {
+            color_byte_array.push_array(byte_array);
+        });
+
+    color_byte_array
+}
+
+fn color_data_to_color_byte_array(color_data: &Vec<u8>, thread_count: usize) -> ByteArray {
+    let mut color_byte_array = ByteArray::new();
+    let color_data_len = color_data.len();
+    let data_chunks: Vec<&[u8]> = color_data.chunks(color_data_len / thread_count).collect();
+    let mut handles = Vec::new();
+
+    for data_chunk_ref in data_chunks {
+        let data_chunk = data_chunk_ref.to_owned();
+
+        handles.push(std::thread::spawn(move || {
+            let mut byte_array = ByteArray::new();
+            byte_array.resize(data_chunk.len() as i32);
+            for i in 0..data_chunk.len() {
+                byte_array.set(i as i32, data_chunk[i]);
+            }
+            byte_array
+        }));
+    }
+    for handle in handles {
+        color_byte_array.push_array(&handle.join().unwrap());
+    }
+
+    color_byte_array
 }
 
 // average of 50usecs, this method is faster than json since json is slower in godot
