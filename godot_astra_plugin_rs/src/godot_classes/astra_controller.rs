@@ -120,12 +120,10 @@ impl AstraController {
     unsafe fn handle_color_frame(&mut self, owner: &mut Node, frame: astra_reader_frame_t) {
         let color_frame = astra::get_color_frame(frame);
         let color_frame_index = astra::get_color_frame_index(color_frame);
-
         let thread_count = num_cpus::get();
 
         if color_frame_index != self.color_frame_index {
             let (width, height, color_data) = astra::get_color_bytes(color_frame);
-            let t = std::time::SystemTime::now();
 
             let mut color_byte_array = ByteArray::new();
             let color_data_len = color_data.len();
@@ -150,32 +148,12 @@ impl AstraController {
                 color_byte_array.push_array(&handle.join().unwrap());
             }
 
-            let multi_thread_time = t.elapsed().unwrap().as_micros();
-
-            let nt = std::time::SystemTime::now();
-
-            if self.color_byte_array.len() != color_data.len() as i32 {
-                self.color_byte_array.resize(color_data.len() as i32)
-            }
-
-            for i in 0..color_data.len() {
-                self.color_byte_array.set(i as i32, color_data[i]);
-            }
-
-            let single_thread_time = nt.elapsed().unwrap().as_micros();
-
-            godot_print!(
-                "single thread: {},\nmulti thread : {}",
-                single_thread_time,
-                multi_thread_time
-            );
-
             owner.emit_signal(
                 GodotString::from_str("new_color_byte_array"),
                 &[
                     Variant::from(width as u64),
                     Variant::from(height as u64),
-                    Variant::from_byte_array(&self.color_byte_array),
+                    Variant::from_byte_array(&color_byte_array),
                 ],
             );
         }
