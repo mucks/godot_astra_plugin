@@ -9,7 +9,7 @@ fn init(handle: gdnative::init::InitHandle) {
     handle.add_class::<godot_classes::AstraController>();
 }
 
-fn terminate(handle: *mut gdnative::sys::godot_gdnative_terminate_options) {
+fn terminate(_handle: *mut gdnative::sys::godot_gdnative_terminate_options) {
     godot_print!("terminate");
 
     unsafe {

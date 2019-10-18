@@ -12,7 +12,6 @@ pub struct AstraController {
     color_frame_index: i32,
     color_fps: u32,
     body_fps: u32,
-    rayon_time_diffs: Vec<i32>,
 }
 
 unsafe impl Send for AstraController {}
@@ -102,7 +101,6 @@ impl AstraController {
             color_frame_index: -1,
             color_fps: 30,
             body_fps: 30,
-            rayon_time_diffs: Vec::new(),
         }
     }
     #[export]
@@ -170,10 +168,6 @@ impl AstraController {
         }
     }
 
-    #[export]
-    unsafe fn _process(&mut self, mut _owner: Node, _delta: f64) {}
-
-    // I'm using base64 here because the ByteArray from godot was causing crashes
     unsafe fn handle_color_frame(&mut self, owner: &mut Node, frame: astra_reader_frame_t) {
         let color_frame = astra::get_color_frame(frame);
         let color_frame_index = astra::get_color_frame_index(color_frame);
@@ -181,23 +175,7 @@ impl AstraController {
 
         if color_frame_index != self.color_frame_index {
             let (width, height, color_data) = astra::get_color_bytes(color_frame);
-            let rayon_time = std::time::SystemTime::now();
-
-            let _ = color_data_to_color_byte_array_rayon(&color_data, thread_count);
-
-            let rayon_time_mcs = rayon_time.elapsed().unwrap().as_micros() as i32;
-
-            let without_rayon_time = std::time::SystemTime::now();
             let color_byte_array = color_data_to_color_byte_array(&color_data, thread_count);
-            let without_rayon_time_mcs = without_rayon_time.elapsed().unwrap().as_micros() as i32;
-
-            self.rayon_time_diffs
-                .push(rayon_time_mcs - without_rayon_time_mcs);
-
-            godot_print!(
-                "time diff avg: {}",
-                self.rayon_time_diffs.iter().sum::<i32>()
-            );
 
             owner.emit_signal(
                 GodotString::from_str("new_color_byte_array"),
@@ -227,33 +205,6 @@ impl AstraController {
 
         self.body_frame_index = body_frame_index;
     }
-}
-
-use rayon::prelude::*;
-
-fn color_data_to_color_byte_array_rayon(color_data: &Vec<u8>, thread_count: usize) -> ByteArray {
-    let mut color_byte_array = ByteArray::new();
-    let color_data_len = color_data.len();
-    let data_chunks: Vec<&[u8]> = color_data.chunks(color_data_len / thread_count).collect();
-
-    data_chunks
-        .par_iter()
-        .map(|chunk| {
-            let mut byte_array = ByteArray::new();
-            byte_array.resize(chunk.len() as i32);
-
-            for i in 0..chunk.len() {
-                byte_array.set(i as i32, chunk[i]);
-            }
-            byte_array
-        })
-        .collect::<Vec<ByteArray>>()
-        .iter()
-        .for_each(|byte_array| {
-            color_byte_array.push_array(byte_array);
-        });
-
-    color_byte_array
 }
 
 fn color_data_to_color_byte_array(color_data: &Vec<u8>, thread_count: usize) -> ByteArray {
