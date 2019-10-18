@@ -4,10 +4,13 @@ use astra::astra_bindings::astra_reader_frame_t;
 use base64::encode;
 use gdnative::*;
 
+use num_cpus;
+
 pub struct AstraController {
     reader: astra::astra_reader_t,
     body_frame_index: i32,
     color_frame_index: i32,
+    color_byte_array: ByteArray,
 }
 
 unsafe impl Send for AstraController {}
@@ -52,7 +55,7 @@ impl NativeClass for AstraController {
                 },
                 init::SignalArgument {
                     name: "color_base64",
-                    default: Variant::from(""),
+                    default: Variant::from_byte_array(&ByteArray::new()),
                     hint: init::PropertyHint::None,
                     usage: init::PropertyUsage::DEFAULT,
                 },
@@ -69,6 +72,7 @@ impl AstraController {
             reader: astra::init_sensor(),
             body_frame_index: -1,
             color_frame_index: -1,
+            color_byte_array: ByteArray::new(),
         }
     }
     // In order to make a method known to Godot, the #[export] attribute has to be used.
@@ -103,7 +107,7 @@ impl AstraController {
 
         if let Some(mut frame) = astra::get_frame(self.reader) {
             self.handle_body_frame(&mut owner, frame);
-            //self.handle_color_frame(&mut owner, frame);
+            self.handle_color_frame(&mut owner, frame);
 
             astra::close_frame(&mut frame);
         }
@@ -113,20 +117,65 @@ impl AstraController {
     unsafe fn _process(&mut self, mut owner: Node, delta: f64) {}
 
     // I'm using base64 here because the ByteArray from godot was causing crashes
-    // TODO: this is not working on android for some reason
     unsafe fn handle_color_frame(&mut self, owner: &mut Node, frame: astra_reader_frame_t) {
         let color_frame = astra::get_color_frame(frame);
         let color_frame_index = astra::get_color_frame_index(color_frame);
 
+        let thread_count = num_cpus::get();
+
         if color_frame_index != self.color_frame_index {
             let (width, height, color_data) = astra::get_color_bytes(color_frame);
-            let color_data_base64 = encode(&color_data);
+            let t = std::time::SystemTime::now();
+
+            let mut color_byte_array = ByteArray::new();
+            let color_data_len = color_data.len();
+            let data_chunks = color_data.chunks(color_data_len / thread_count);
+            let mut handles = Vec::new();
+
+            for data_chunk_ref in data_chunks {
+                let data_chunk = data_chunk_ref.to_owned();
+
+                handles.push(std::thread::spawn(move || {
+                    let mut byte_array = ByteArray::new();
+                    byte_array.resize(data_chunk.len() as i32);
+
+                    for i in 0..data_chunk.len() {
+                        byte_array.set(i as i32, data_chunk[i]);
+                    }
+
+                    byte_array
+                }));
+            }
+            for handle in handles {
+                color_byte_array.push_array(&handle.join().unwrap());
+            }
+
+            let multi_thread_time = t.elapsed().unwrap().as_micros();
+
+            let nt = std::time::SystemTime::now();
+
+            if self.color_byte_array.len() != color_data.len() as i32 {
+                self.color_byte_array.resize(color_data.len() as i32)
+            }
+
+            for i in 0..color_data.len() {
+                self.color_byte_array.set(i as i32, color_data[i]);
+            }
+
+            let single_thread_time = nt.elapsed().unwrap().as_micros();
+
+            godot_print!(
+                "single thread: {},\nmulti thread : {}",
+                single_thread_time,
+                multi_thread_time
+            );
+
             owner.emit_signal(
                 GodotString::from_str("new_color_byte_array"),
                 &[
                     Variant::from(width as u64),
                     Variant::from(height as u64),
-                    Variant::from(&color_data_base64),
+                    Variant::from_byte_array(&self.color_byte_array),
                 ],
             );
         }

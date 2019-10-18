@@ -14,3 +14,4 @@ crate-type = ["cdylib"]
 gdnative = { git = "https://github.com/GodotNativeTools/godot-rust" }
 base64 = "0.10.1"
 libc = "0.2"
+num_cpus = "1.10.1"

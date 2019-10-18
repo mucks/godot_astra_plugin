@@ -23,8 +23,7 @@ transform = Transform( -1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 0
 script = ExtResource( 2 )
 
 [node name="ColorStreamView" type="Sprite" parent="."]
-position = Vector2( 730.498, 177.035 )
-scale = Vector2( 0.5, 0.5 )
+position = Vector2( 730.498, 164.792 )
 texture = ExtResource( 3 )
 script = ExtResource( 4 )
 [connection signal="new_body_list" from="AstraController" to="Skeleton" method="_on_AstraController_new_body_list"]

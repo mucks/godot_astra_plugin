@@ -1,7 +1,8 @@
 extends Sprite
 
-func _on_AstraController_new_color_byte_array(width, height, color_base64):
-    var colors = Marshalls.base64_to_raw(color_base64)
+func _on_AstraController_new_color_byte_array(width, height, colors):
+    # the base 64 is causing massive frame issues
+    #var colors = Marshalls.base64_to_raw(color_base64)
     var img = Image.new()
     img.create_from_data(width, height, false, Image.FORMAT_RGB8, colors)
 

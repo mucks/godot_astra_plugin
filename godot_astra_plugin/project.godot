@@ -23,6 +23,11 @@ config/name="godot_astra_plugin"
 run/main_scene="res://addons/godot_astra_plugin/scenes/Demo.tscn"
 config/icon="res://icon.png"
 
+[display]
+
+window/stretch/mode="2d"
+
 [rendering]
 
+quality/driver/driver_name="GLES2"
 environment/default_environment="res://default_env.tres"
