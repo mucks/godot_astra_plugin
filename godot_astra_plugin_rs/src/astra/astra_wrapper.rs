@@ -100,10 +100,21 @@ pub unsafe fn get_color_frame_byte_length(color_frame: astra_colorframe_t) -> us
     astra_colorframe_get_data_byte_length(color_frame, &mut byte_length);
     byte_length as usize
 }
+pub unsafe fn get_masked_color_frame_byte_length(color_frame: astra_colorframe_t) -> usize {
+    let mut byte_length = 0;
+    astra_maskedcolorframe_get_data_byte_length(color_frame, &mut byte_length);
+    byte_length as usize
+}
 
 pub unsafe fn get_color_frame_dimensions(color_frame: astra_colorframe_t) -> (u32, u32) {
     let mut metadata = astra_image_metadata_t::default();
     astra_colorframe_get_metadata(color_frame, &mut metadata);
+    (metadata.width, metadata.height)
+}
+
+pub unsafe fn get_masked_color_frame_dimensions(color_frame: astra_colorframe_t) -> (u32, u32) {
+    let mut metadata = astra_image_metadata_t::default();
+    astra_maskedcolorframe_get_metadata(color_frame, &mut metadata);
     (metadata.width, metadata.height)
 }
 
@@ -114,8 +125,40 @@ pub unsafe fn get_color_bytes(color_frame: astra_colorframe_t, byte_length: u32)
     data
 }
 
+//ByteArray::new().write().as_mut_ptr()
 pub unsafe fn get_color_byte_array(color_frame: astra_colorframe_t, ptr: *mut u8) {
     astra_colorframe_copy_data(color_frame, ptr);
+}
+
+//ByteArray::new().write().as_mut_ptr()
+pub unsafe fn get_masked_color_byte_array(color_frame: astra_colorframe_t, ptr: *mut u8) {
+    let (width, height) = get_masked_color_frame_dimensions(color_frame);
+    let mut rgba_pixels = Vec::new();
+    let byte_length = get_masked_color_frame_byte_length(color_frame);
+    rgba_pixels.resize(
+        (width * height) as usize,
+        astra_rgba_pixel_t {
+            r: 0,
+            g: 0,
+            b: 0,
+            alpha: 0,
+        },
+    );
+    astra_maskedcolorframe_copy_data(color_frame, rgba_pixels.as_mut_ptr());
+    let mut bytes = Vec::new();
+    bytes.resize(byte_length, 0);
+    for i in 0..rgba_pixels.len() {
+        let pixel = rgba_pixels[i];
+        if pixel.alpha == 0 {
+            bytes[i] = pixel.r;
+            bytes[i + 1] = pixel.g;
+            bytes[i + 2] = pixel.b;
+            bytes[i + 3] = pixel.alpha;
+        } else {
+            //implement depth
+        }
+    }
+    std::ptr::copy(bytes.as_ptr(), ptr, byte_length);
 }
 
 pub unsafe fn get_body_list(body_frame: astra_bodyframe_t) -> _astra_body_list {
