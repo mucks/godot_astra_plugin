@@ -95,17 +95,27 @@ pub unsafe fn get_color_frame_index(color_frame: astra_colorframe_t) -> i32 {
     frame_index
 }
 
-pub unsafe fn get_color_bytes(color_frame: astra_colorframe_t) -> (u32, u32, Vec<u8>) {
-    let mut metadata = astra_image_metadata_t::default();
-    astra_colorframe_get_metadata(color_frame, &mut metadata);
+pub unsafe fn get_color_frame_byte_length(color_frame: astra_colorframe_t) -> usize {
     let mut byte_length = 0;
     astra_colorframe_get_data_byte_length(color_frame, &mut byte_length);
+    byte_length as usize
+}
 
+pub unsafe fn get_color_frame_dimensions(color_frame: astra_colorframe_t) -> (u32, u32) {
+    let mut metadata = astra_image_metadata_t::default();
+    astra_colorframe_get_metadata(color_frame, &mut metadata);
+    (metadata.width, metadata.height)
+}
+
+pub unsafe fn get_color_bytes(color_frame: astra_colorframe_t, byte_length: u32) -> Vec<u8> {
     let mut data: Vec<u8> = Vec::new();
     data.resize(byte_length as usize, 0);
-
     astra_colorframe_copy_data(color_frame, data.as_mut_ptr());
-    (metadata.width, metadata.height, data)
+    data
+}
+
+pub unsafe fn get_color_byte_array(color_frame: astra_colorframe_t, ptr: *mut u8) {
+    astra_colorframe_copy_data(color_frame, ptr);
 }
 
 pub unsafe fn get_body_list(body_frame: astra_bodyframe_t) -> _astra_body_list {

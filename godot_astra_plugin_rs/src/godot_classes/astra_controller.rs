@@ -9,9 +9,17 @@ use num_cpus;
 pub struct AstraController {
     reader: astra::astra_reader_t,
     body_frame_index: i32,
-    color_frame_index: i32,
-    color_fps: u32,
     body_fps: u32,
+    color: ColorState,
+}
+
+#[derive(Default)]
+pub struct ColorState {
+    frame_index: i32,
+    fps: u32,
+    byte_length: usize,
+    width: u32,
+    height: u32,
 }
 
 unsafe impl Send for AstraController {}
@@ -50,8 +58,8 @@ impl NativeClass for AstraController {
                 step: 1.0,
                 slider: true,
             },
-            getter: |this: &AstraController| this.color_fps,
-            setter: |this: &mut AstraController, v| this.color_fps = v,
+            getter: |this: &AstraController| this.color.fps,
+            setter: |this: &mut AstraController, v| this.color.fps = v,
             usage: PropertyUsage::DEFAULT,
         });
 
@@ -81,8 +89,8 @@ impl NativeClass for AstraController {
                     usage: init::PropertyUsage::DEFAULT,
                 },
                 init::SignalArgument {
-                    name: "color_base64",
-                    default: Variant::from_byte_array(&ByteArray::new()),
+                    name: "image",
+                    default: Variant::from_object(&Image::new()),
                     hint: init::PropertyHint::None,
                     usage: init::PropertyUsage::DEFAULT,
                 },
@@ -98,13 +106,16 @@ impl AstraController {
         AstraController {
             reader: astra::init_sensor(),
             body_frame_index: -1,
-            color_frame_index: -1,
-            color_fps: 30,
+            color: ColorState {
+                fps: 30,
+                ..Default::default()
+            },
             body_fps: 30,
         }
     }
     #[export]
     unsafe fn _ready(&mut self, owner: Node) {
+        godot_print!("{}", self.color.fps);
         self.start_body_stream(owner);
         self.start_color_stream(owner);
     }
@@ -142,7 +153,7 @@ impl AstraController {
             )
             .unwrap();
 
-        color_timer.set_wait_time(1.0 / self.color_fps as f64);
+        color_timer.set_wait_time(1.0 / self.color.fps as f64);
         owner.add_child(Some(*color_timer), false);
         color_timer.start(0.0);
     }
@@ -171,22 +182,37 @@ impl AstraController {
     unsafe fn handle_color_frame(&mut self, owner: &mut Node, frame: astra_reader_frame_t) {
         let color_frame = astra::get_color_frame(frame);
         let color_frame_index = astra::get_color_frame_index(color_frame);
-        let thread_count = num_cpus::get();
 
-        if color_frame_index != self.color_frame_index {
-            let (width, height, color_data) = astra::get_color_bytes(color_frame);
-            let color_byte_array = color_data_to_color_byte_array(&color_data, thread_count);
+        if color_frame_index != self.color.frame_index {
+            let byte_length = astra::get_color_frame_byte_length(color_frame);
+            let mut byte_array = ByteArray::new();
+            byte_array.resize(byte_length as i32);
+            if self.color.byte_length != byte_length {
+                self.color.byte_length = byte_length;
+                let (width, height) = astra::get_color_frame_dimensions(color_frame);
+                self.color.width = width;
+                self.color.height = height;
+            }
+            astra::get_color_byte_array(color_frame, byte_array.write().as_mut_ptr());
+            let mut img = Image::new();
+            img.create_from_data(
+                self.color.width as i64,
+                self.color.height as i64,
+                false,
+                4,
+                byte_array,
+            );
 
             owner.emit_signal(
                 GodotString::from_str("new_color_byte_array"),
                 &[
-                    Variant::from(width as u64),
-                    Variant::from(height as u64),
-                    Variant::from_byte_array(&color_byte_array),
+                    Variant::from(self.color.width as u64),
+                    Variant::from(self.color.height as u64),
+                    Variant::from_object(&img),
                 ],
             );
         }
-        self.color_frame_index = color_frame_index
+        self.color.frame_index = color_frame_index
     }
 
     unsafe fn handle_body_frame(&mut self, owner: &mut Node, frame: astra_reader_frame_t) {
@@ -205,31 +231,6 @@ impl AstraController {
 
         self.body_frame_index = body_frame_index;
     }
-}
-
-fn color_data_to_color_byte_array(color_data: &Vec<u8>, thread_count: usize) -> ByteArray {
-    let mut color_byte_array = ByteArray::new();
-    let color_data_len = color_data.len();
-    let data_chunks: Vec<&[u8]> = color_data.chunks(color_data_len / thread_count).collect();
-    let mut handles = Vec::new();
-
-    for data_chunk_ref in data_chunks {
-        let data_chunk = data_chunk_ref.to_owned();
-
-        handles.push(std::thread::spawn(move || {
-            let mut byte_array = ByteArray::new();
-            byte_array.resize(data_chunk.len() as i32);
-            for i in 0..data_chunk.len() {
-                byte_array.set(i as i32, data_chunk[i]);
-            }
-            byte_array
-        }));
-    }
-    for handle in handles {
-        color_byte_array.push_array(&handle.join().unwrap());
-    }
-
-    color_byte_array
 }
 
 // average of 50usecs, this method is faster than json since json is slower in godot
