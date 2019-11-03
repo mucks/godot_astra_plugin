@@ -1,4 +1,4 @@
-use crate::astra;
+use astra;
 use gdnative::init::{Property, PropertyHint, PropertyUsage};
 use gdnative::*;
 
@@ -8,9 +8,11 @@ mod body;
 mod masked_color;
 
 pub struct AstraController {
-    reader: astra::astra_reader_t,
+    sensor: astra::Sensor,
+    reader: astra::Reader,
     body_frame_index: i32,
     body_fps: u32,
+    body_stream: Option<astra::Stream>,
     color: ColorState,
     masked_color: ColorState,
 }
@@ -96,9 +98,14 @@ impl NativeClass for AstraController {
 impl AstraController {
     /// The "constructor" of the class.
     unsafe fn _init(_owner: Node) -> Self {
+        astra::init();
+        let sensor = astra::get_sensor();
+        let reader = astra::get_reader(sensor);
         AstraController {
-            reader: astra::init_sensor(),
+            sensor: sensor,
+            reader: reader,
             body_frame_index: -1,
+            body_stream: None,
             color: ColorState {
                 fps: 30,
                 ..Default::default()
@@ -110,10 +117,18 @@ impl AstraController {
             body_fps: 30,
         }
     }
+
+    #[export]
+    unsafe fn _exit_tree(&mut self, _owner: Node) {
+        if let Some(stream) = self.body_stream {
+            astra::stop_stream(stream);
+        }
+    }
+
     #[export]
     unsafe fn _ready(&mut self, owner: Node) {
-        self.start_body_stream(owner);
-        self.start_color_stream(owner);
+        self.body_stream = Some(self.start_body_stream(owner));
+        //self.start_color_stream(owner);
     }
 
     #[export]

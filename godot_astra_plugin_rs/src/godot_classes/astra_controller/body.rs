@@ -1,6 +1,5 @@
-use crate::astra;
-use crate::util::{astra_vec2_to_gd_vec2, astra_vec3_to_gd_vec3};
-use astra::astra_bindings::astra_reader_frame_t;
+use crate::util;
+use astra;
 use gdnative::*;
 
 #[derive(Default)]
@@ -10,8 +9,8 @@ pub struct BodyState {
 }
 
 impl super::AstraController {
-    pub unsafe fn start_body_stream(&mut self, mut owner: Node) {
-        astra::start_body_stream(self.reader);
+    pub unsafe fn start_body_stream(&mut self, mut owner: Node) -> astra::Stream {
+        let stream = astra::start_body_stream(self.reader);
 
         let mut body_timer = Timer::new();
         body_timer
@@ -27,6 +26,7 @@ impl super::AstraController {
         body_timer.set_wait_time(1.0 / self.body_fps as f64);
         owner.add_child(Some(*body_timer), false);
         body_timer.start(0.0);
+        stream
     }
 
     pub unsafe fn handle_update_body(&mut self, mut owner: Node) {
@@ -38,13 +38,13 @@ impl super::AstraController {
             astra::close_frame(&mut frame);
         }
     }
-    pub unsafe fn handle_body_frame(&mut self, owner: &mut Node, frame: astra_reader_frame_t) {
+    pub unsafe fn handle_body_frame(&mut self, owner: &mut Node, frame: astra::Frame) {
         let body_frame = astra::get_body_frame(frame);
         let body_frame_index = astra::get_body_frame_index(body_frame);
 
         if body_frame_index != self.body_frame_index {
-            let body_list = astra::get_body_list(body_frame);
-            let godot_bodies = body_list_to_variant_array(&body_list);
+            let bodies = astra::get_bodies(body_frame);
+            let godot_bodies = body_list_to_variant_array(bodies);
 
             owner.emit_signal(
                 GodotString::from_str("new_body_list"),
@@ -57,29 +57,35 @@ impl super::AstraController {
 }
 
 // average of 50usecs, this method is faster than json since json is slower in godot
-fn body_list_to_variant_array(body_list: &astra::astra_bindings::_astra_body_list) -> VariantArray {
+fn body_list_to_variant_array(bodies: Vec<astra::Body>) -> VariantArray {
     let mut godot_bodies = VariantArray::new();
 
-    for i in 0..body_list.count {
+    for body in bodies
+        .iter()
+        .filter(|b| b.status == astra::BodyStatus::Tracking)
+    {
         let mut godot_body = Dictionary::new();
         let mut godot_joints = Dictionary::new();
-        let body = body_list.bodies[i as usize];
 
-        for joint in body.joints.iter() {
+        for (joint_type, joint) in body
+            .joints
+            .iter()
+            .filter(|(_, joint)| joint.status == astra::JointStatus::Tracked)
+        {
             let mut godot_joint = Dictionary::new();
-            let joint_type = &Variant::from(joint.type_ as u64);
+            let joint_type = &Variant::from(joint_type.clone() as u64);
             godot_joint.set(&Variant::from("joint_type"), &joint_type);
             godot_joint.set(
                 &Variant::from("status"),
-                &Variant::from(joint.status as u64),
+                &Variant::from(joint.status.clone() as u64),
             );
             godot_joint.set(
                 &Variant::from("depth_position"),
-                &Variant::from(&astra_vec2_to_gd_vec2(&joint.depthPosition)),
+                &Variant::from(&util::convert_vector2(&joint.depth_position)),
             );
             godot_joint.set(
                 &Variant::from("world_position"),
-                &Variant::from(&astra_vec3_to_gd_vec3(&joint.worldPosition)),
+                &Variant::from(&util::convert_vector3(&joint.world_position)),
             );
             godot_joints.set(&joint_type, &Variant::from_dictionary(&godot_joint));
         }
@@ -92,11 +98,11 @@ fn body_list_to_variant_array(body_list: &astra::astra_bindings::_astra_body_lis
         godot_body.set(&Variant::from_str("id"), &Variant::from(body.id as u64));
         godot_body.set(
             &Variant::from_str("status"),
-            &Variant::from(body.status as u64),
+            &Variant::from(body.status.clone() as u64),
         );
         godot_body.set(
             &Variant::from_str("center_off_mass"),
-            &Variant::from(&astra_vec3_to_gd_vec3(&body.centerOfMass)),
+            &Variant::from(&util::convert_vector3(&body.center_of_mass)),
         );
         godot_bodies.push(&Variant::from_dictionary(&godot_body));
     }

@@ -1,10 +1,6 @@
-use crate::astra::astra_bindings::{astra_vector2f_t, astra_vector3f_t};
-use gdnative::{Vector2, Vector3};
-
-pub fn astra_vec3_to_gd_vec3(vector: &astra_vector3f_t) -> Vector3 {
-    Vector3::new(vector.x, vector.y, vector.z)
+pub fn convert_vector2(v: &astra::Vector2) -> gdnative::Vector2 {
+    gdnative::Vector2::new(v.x, v.y)
 }
-
-pub fn astra_vec2_to_gd_vec2(vector: &astra_vector2f_t) -> Vector2 {
-    Vector2::new(vector.x, vector.y)
+pub fn convert_vector3(v: &astra::Vector3) -> gdnative::Vector3 {
+    gdnative::Vector3::new(v.x, v.y, v.z)
 }

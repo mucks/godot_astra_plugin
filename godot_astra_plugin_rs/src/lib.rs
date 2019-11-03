@@ -1,7 +1,5 @@
 #[macro_use]
 extern crate gdnative;
-
-mod astra;
 mod godot_classes;
 mod util;
 
@@ -11,10 +9,7 @@ fn init(handle: gdnative::init::InitHandle) {
 
 fn terminate(_handle: *mut gdnative::sys::godot_gdnative_terminate_options) {
     godot_print!("terminate");
-
-    unsafe {
-        astra::terminate();
-    }
+    astra::terminate();
 }
 
 godot_gdnative_init!();

@@ -1,5 +1,4 @@
-use crate::astra;
-use astra::astra_bindings::astra_reader_frame_t;
+use astra;
 use gdnative::*;
 
 #[derive(Default)]
@@ -39,7 +38,7 @@ impl super::AstraController {
             astra::close_frame(&mut frame);
         }
     }
-    pub unsafe fn handle_color_frame(&mut self, owner: &mut Node, frame: astra_reader_frame_t) {
+    pub unsafe fn handle_color_frame(&mut self, owner: &mut Node, frame: astra::Frame) {
         let color_frame = astra::get_color_frame(frame);
         let color_frame_index = astra::get_color_frame_index(color_frame);
 

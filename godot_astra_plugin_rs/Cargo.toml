@@ -13,5 +13,6 @@ crate-type = ["cdylib"]
 [dependencies]
 gdnative = { git = "https://github.com/GodotNativeTools/godot-rust" }
 gdnative-sys = { git = "https://github.com/GodotNativeTools/godot-rust" }
+astra = { git = "https://github.com/rustmain/astra-rust" }
 libc = "0.2"
 num_cpus = "1.10.1"
