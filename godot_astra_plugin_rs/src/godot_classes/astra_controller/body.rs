@@ -2,57 +2,41 @@ use crate::util;
 use astra;
 use gdnative::*;
 
-#[derive(Default)]
-pub struct BodyState {
-    pub frame_index: i32,
-    pub fps: u32,
-}
-
 impl super::AstraController {
-    pub unsafe fn start_body_stream(&mut self, mut owner: Node) -> astra::Stream {
-        let stream = astra::start_body_stream(self.reader);
+    pub unsafe fn start_body_stream(&mut self, mut owner: Node) {
+        if let Some(sensor) = &mut self.sensor {
+            godot_print!("body_stream: {:?}", sensor.start_body_stream());
 
-        let mut body_timer = Timer::new();
-        body_timer
-            .connect(
-                "timeout".into(),
-                Some(*owner),
-                "update_body".into(),
-                VariantArray::new(),
-                0,
-            )
-            .unwrap();
+            let mut body_timer = Timer::new();
+            body_timer
+                .connect(
+                    "timeout".into(),
+                    Some(*owner),
+                    "update_body".into(),
+                    VariantArray::new(),
+                    0,
+                )
+                .unwrap();
 
-        body_timer.set_wait_time(1.0 / self.body_fps as f64);
-        owner.add_child(Some(*body_timer), false);
-        body_timer.start(0.0);
-        stream
+            body_timer.set_wait_time(1.0 / self.body_fps as f64);
+            owner.add_child(Some(*body_timer), false);
+            body_timer.start(0.0);
+        }
     }
 
     pub unsafe fn handle_update_body(&mut self, mut owner: Node) {
-        astra::update();
+        if let Some(sensor) = &mut self.sensor {
+            sensor.update();
 
-        if let Some(mut frame) = astra::get_frame(self.reader) {
-            self.handle_body_frame(&mut owner, frame);
+            if let Ok(bodies) = sensor.get_bodies() {
+                let godot_bodies = body_list_to_variant_array(bodies);
 
-            astra::close_frame(&mut frame);
+                owner.emit_signal(
+                    GodotString::from_str("new_body_list"),
+                    &[Variant::from_array(&godot_bodies)],
+                );
+            }
         }
-    }
-    pub unsafe fn handle_body_frame(&mut self, owner: &mut Node, frame: astra::Frame) {
-        let body_frame = astra::get_body_frame(frame);
-        let body_frame_index = astra::get_body_frame_index(body_frame);
-
-        if body_frame_index != self.body_frame_index {
-            let bodies = astra::get_bodies(body_frame);
-            let godot_bodies = body_list_to_variant_array(bodies);
-
-            owner.emit_signal(
-                GodotString::from_str("new_body_list"),
-                &[Variant::from_array(&godot_bodies)],
-            );
-        }
-
-        self.body_frame_index = body_frame_index;
     }
 }
 

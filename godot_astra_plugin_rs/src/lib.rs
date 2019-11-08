@@ -7,10 +7,7 @@ fn init(handle: gdnative::init::InitHandle) {
     handle.add_class::<godot_classes::AstraController>();
 }
 
-fn terminate(_handle: *mut gdnative::sys::godot_gdnative_terminate_options) {
-    godot_print!("terminate");
-    astra::terminate();
-}
+fn terminate(_handle: *mut gdnative::sys::godot_gdnative_terminate_options) {}
 
 godot_gdnative_init!();
 godot_nativescript_init!(init);

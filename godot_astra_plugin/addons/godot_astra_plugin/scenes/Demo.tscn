@@ -28,4 +28,4 @@ scale = Vector2( 0.7, 0.7 )
 texture = ExtResource( 3 )
 script = ExtResource( 4 )
 [connection signal="new_body_list" from="AstraController" to="Skeleton" method="_on_AstraController_new_body_list"]
-[connection signal="new_color_byte_array" from="AstraController" to="ColorStreamView" method="_on_AstraController_new_color_byte_array"]
+[connection signal="new_color_img" from="AstraController" to="ColorStreamView" method="_on_AstraController_new_color_img"]
