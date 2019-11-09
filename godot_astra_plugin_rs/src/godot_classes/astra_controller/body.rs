@@ -5,36 +5,24 @@ use gdnative::*;
 impl super::AstraController {
     pub unsafe fn start_body_stream(&mut self, mut owner: Node) {
         if let Some(sensor) = &mut self.sensor {
-            godot_print!("body_stream: {:?}", sensor.start_body_stream());
-
-            let mut body_timer = Timer::new();
-            body_timer
-                .connect(
-                    "timeout".into(),
-                    Some(*owner),
-                    "update_body".into(),
-                    VariantArray::new(),
-                    0,
-                )
-                .unwrap();
-
-            body_timer.set_wait_time(1.0 / self.body_fps as f64);
-            owner.add_child(Some(*body_timer), false);
-            body_timer.start(0.0);
+            match sensor.start_body_stream() {
+                Ok(_) => self.start_timer(owner, self.body_fps, "update_body"),
+                Err(err) => godot_print!("{:?}", err),
+            }
         }
     }
 
     pub unsafe fn handle_update_body(&mut self, mut owner: Node) {
         if let Some(sensor) = &mut self.sensor {
-            sensor.update();
+            if sensor.update().is_ok() {
+                if let Ok(bodies) = sensor.get_bodies() {
+                    let godot_bodies = body_list_to_variant_array(bodies);
 
-            if let Ok(bodies) = sensor.get_bodies() {
-                let godot_bodies = body_list_to_variant_array(bodies);
-
-                owner.emit_signal(
-                    GodotString::from_str("new_body_list"),
-                    &[Variant::from_array(&godot_bodies)],
-                );
+                    owner.emit_signal(
+                        GodotString::from_str("new_body_list"),
+                        &[Variant::from_array(&godot_bodies)],
+                    );
+                }
             }
         }
     }
