@@ -4,25 +4,17 @@ use gdnative::*;
 
 impl super::AstraController {
     pub unsafe fn start_body_stream(&mut self, mut owner: Node) {
-        if let Some(sensor) = &mut self.sensor {
-            match sensor.start_body_stream() {
-                Ok(_) => self.start_timer(owner, self.body_fps, "update_body"),
-                Err(err) => godot_print!("{:?}", err),
-            }
+        match self.sensor.start_body_stream() {
+            Ok(_) => self.start_timer(owner, self.body_fps, "update_body"),
+            Err(err) => godot_print!("{:?}", err),
         }
     }
 
     pub unsafe fn handle_update_body(&mut self, mut owner: Node) {
-        if let Some(sensor) = &mut self.sensor {
-            if sensor.update().is_ok() {
-                if let Ok(bodies) = sensor.get_bodies() {
-                    let godot_bodies = body_list_to_variant_array(bodies);
-
-                    owner.emit_signal(
-                        GodotString::from_str("new_body_list"),
-                        &[Variant::from_array(&godot_bodies)],
-                    );
-                }
+        if let Ok(frame) = self.sensor.update() {
+            if let Ok(bodies) = self.sensor.get_bodies(&frame) {
+                let godot_bodies = body_list_to_variant_array(bodies);
+                self.bodies = godot_bodies;
             }
         }
     }
