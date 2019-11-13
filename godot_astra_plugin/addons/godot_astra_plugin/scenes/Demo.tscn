@@ -1,13 +1,32 @@
-[gd_scene load_steps=5 format=2]
+[gd_scene load_steps=7 format=2]
 
-[ext_resource path="res://addons/godot_astra_plugin/scenes/AstraController.tscn" type="PackedScene" id=1]
-[ext_resource path="res://addons/godot_astra_plugin/src/Skeleton.gd" type="Script" id=2]
-[ext_resource path="res://icon.png" type="Texture" id=3]
-[ext_resource path="res://addons/godot_astra_plugin/src/ColorStreamView.gd" type="Script" id=4]
+[ext_resource path="res://icon.png" type="Texture" id=1]
+[ext_resource path="res://addons/godot_astra_plugin/src/ColorStreamView.gd" type="Script" id=2]
+[ext_resource path="res://addons/godot_astra_plugin/src/MaskedColorStreamView.gd" type="Script" id=3]
+[ext_resource path="res://addons/godot_astra_plugin/src/DepthStreamView.gd" type="Script" id=4]
+[ext_resource path="res://addons/godot_astra_plugin/scenes/AstraController.tscn" type="PackedScene" id=5]
+[ext_resource path="res://addons/godot_astra_plugin/src/Skeleton.gd" type="Script" id=6]
 
 [node name="Spatial" type="Spatial"]
 
-[node name="AstraController" parent="." instance=ExtResource( 1 )]
+[node name="Streams" type="Node2D" parent="."]
+
+[node name="ColorStreamView" type="Sprite" parent="Streams"]
+position = Vector2( 320, 240 )
+texture = ExtResource( 1 )
+script = ExtResource( 2 )
+
+[node name="MaskedColorStreamView" type="Sprite" parent="Streams"]
+position = Vector2( 320, 720 )
+texture = ExtResource( 1 )
+script = ExtResource( 3 )
+
+[node name="DepthStreamView" type="Sprite" parent="Streams"]
+position = Vector2( 960, 240 )
+texture = ExtResource( 1 )
+script = ExtResource( 4 )
+
+[node name="AstraController" parent="." instance=ExtResource( 5 )]
 
 [node name="Label" type="Label" parent="AstraController"]
 margin_left = 212.0
@@ -20,12 +39,4 @@ transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6.31409 )
 
 [node name="Skeleton" type="Spatial" parent="."]
 transform = Transform( -1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -4.00951, 0, 0 )
-script = ExtResource( 2 )
-
-[node name="ColorStreamView" type="Sprite" parent="."]
-position = Vector2( 794.436, 132.143 )
-scale = Vector2( 0.7, 0.7 )
-texture = ExtResource( 3 )
-script = ExtResource( 4 )
-[connection signal="new_body_list" from="AstraController" to="Skeleton" method="_on_AstraController_new_body_list"]
-[connection signal="new_color_img" from="AstraController" to="ColorStreamView" method="_on_AstraController_new_color_img"]
+script = ExtResource( 6 )

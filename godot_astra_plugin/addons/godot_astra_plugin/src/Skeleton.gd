@@ -7,8 +7,9 @@ func _ready():
     pass # Replace with function body.
 
 #average 50usecs
-func _on_AstraController_new_body_list(body_list):
-    for body in body_list:
+func _process(delta):
+    var bodies = get_node("../AstraController").get_bodies()
+    for body in bodies:
         var joints = body["joints"]
         for joint_type in joints:
             var joint = joints[joint_type]

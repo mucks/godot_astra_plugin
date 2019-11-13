@@ -1,7 +1,7 @@
 extends Sprite
 
-func _on_AstraController_new_color_img(img):
-    var imageTexture = ImageTexture.new()
-    imageTexture.create_from_image(img, 7)
-    set_texture(imageTexture);  
-    
+func _process(delta):
+    var image = get_node("../../AstraController").get_color_image()
+    var image_texture = ImageTexture.new()
+    image_texture.create_from_image(image)
+    set_texture(image_texture)

@@ -3,7 +3,6 @@ name = "godot_rust_test_rs"
 version = "0.1.0"
 authors = ["containercat <mail@containercat.com>"]
 edition = "2018"
-build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,6 +12,6 @@ crate-type = ["cdylib"]
 [dependencies]
 gdnative = { git = "https://github.com/GodotNativeTools/godot-rust" }
 gdnative-sys = { git = "https://github.com/GodotNativeTools/godot-rust" }
-astra = { path = "../../astra-rust/astra" }
+astra = { git = "https://github.com/rustmain/astra-rust" }
 libc = "0.2"
 num_cpus = "1.10.1"

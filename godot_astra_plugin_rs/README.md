@@ -1,13 +1,20 @@
-gdnative needs java headers
+# Godot Plugin for Orbbec Astra SDK
 
-sudo cp -r /usr/lib/jvm/java-8-openjdk/include/* /usr/include/
-sudo cp -r /usr/lib/jvm/java-8-openjdk/include/linux/* /usr/include/
+Godot Plugin for the [Orbbec Astra Sdk](https://orbbec3d.com/develop/)
 
-persee requires target ndk version 22 (android 5.1)
+## Prerequisites to use this library
 
-${NDK_HOME}/build/tools/make_standalone_toolchain.py --api 22 --arch arm64 --install-dir NDK/arm64
-${NDK_HOME}/build/tools/make_standalone_toolchain.py --api 22 --arch arm --install-dir NDK/arm
-${NDK_HOME}/build/tools/make_standalone_toolchain.py --api 22 --arch x86 --install-dir NDK/x86
+* Download and install the [Orbbec Astra Sdk](https://orbbec3d.com/develop/)
+* make sure you have these envs in your .profile
 
+```bash
+# adjust astra home to your astra_sdk path
+export ASTRA_HOME=$HOME/astra
+export ASTRA_SDK_INCLUDE=$ASTRA_HOME/include
+export ASTRA_SDK_LIB=$ASTRA_HOME/lib
+# this is so that rust executables know where to find the astra libs
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$ASTRA_SDK_LIB
+```
 
-export requires sdk aar to work
+* add "source ~/.profile" to your .bashrc
+* run godot from the terminal
