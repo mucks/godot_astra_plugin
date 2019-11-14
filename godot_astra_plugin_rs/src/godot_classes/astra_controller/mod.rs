@@ -1,11 +1,11 @@
 use astra;
-use gdnative::init::{Property, PropertyHint, PropertyUsage};
+use astra::StreamType;
 use gdnative::*;
+use std::collections::HashMap;
 
 mod body;
-mod color;
-mod depth;
-mod masked_color;
+mod img;
+mod native_class;
 
 pub struct AstraController {
     sensor: astra::Sensor,
@@ -13,66 +13,15 @@ pub struct AstraController {
     color_fps: u32,
     depth_fps: u32,
     masked_color_fps: u32,
-    color_image: Image,
-    masked_color_image: Image,
-    depth_image: Image,
+    color_enabled: bool,
+    body_enabled: bool,
+    depth_enabled: bool,
+    masked_color_enabled: bool,
     bodies: VariantArray,
+    images: HashMap<astra::StreamType, Image>,
 }
 
 unsafe impl Send for AstraController {}
-
-impl NativeClass for AstraController {
-    type Base = Node;
-    type UserData = user_data::MutexData<AstraController>;
-
-    fn class_name() -> &'static str {
-        "AstraController"
-    }
-
-    fn init(_owner: Self::Base) -> Self {
-        unsafe { Self::_init(_owner) }
-    }
-
-    fn register_properties(builder: &init::ClassBuilder<Self>) {
-        builder.add_property(Property {
-            name: "body_fps",
-            default: 30,
-            hint: PropertyHint::Range {
-                range: 0.0..60.0,
-                step: 1.0,
-                slider: true,
-            },
-            getter: |this: &AstraController| this.body_fps,
-            setter: |this: &mut AstraController, v| this.body_fps = v,
-            usage: PropertyUsage::DEFAULT,
-        });
-
-        builder.add_property(Property {
-            name: "color_fps",
-            default: 30,
-            hint: PropertyHint::Range {
-                range: 0.0..60.0,
-                step: 1.0,
-                slider: true,
-            },
-            getter: |this: &AstraController| this.color_fps,
-            setter: |this: &mut AstraController, v| this.color_fps = v,
-            usage: PropertyUsage::DEFAULT,
-        });
-        builder.add_property(Property {
-            name: "masked_color_fps",
-            default: 30,
-            hint: PropertyHint::Range {
-                range: 0.0..60.0,
-                step: 1.0,
-                slider: true,
-            },
-            getter: |this: &AstraController| this.masked_color_fps,
-            setter: |this: &mut AstraController, v| this.masked_color_fps = v,
-            usage: PropertyUsage::DEFAULT,
-        });
-    }
-}
 
 #[methods]
 impl AstraController {
@@ -84,34 +33,52 @@ impl AstraController {
             body_fps: 30,
             masked_color_fps: 30,
             depth_fps: 30,
-            color_image: Image::new(),
-            masked_color_image: Image::new(),
-            depth_image: Image::new(),
             bodies: VariantArray::new(),
+            color_enabled: false,
+            masked_color_enabled: false,
+            body_enabled: false,
+            depth_enabled: false,
+            images: [
+                (StreamType::Color, Image::new()),
+                (StreamType::MaskedColor, Image::new()),
+                (StreamType::Depth, Image::new()),
+                (StreamType::Infrared, Image::new()),
+            ]
+            .iter()
+            .cloned()
+            .collect(),
         }
     }
 
     #[export]
     unsafe fn _ready(&mut self, owner: Node) {
         self.sensor.init().unwrap();
-        self.start_color_stream(owner);
-        self.start_body_stream(owner);
-        self.start_depth_stream(owner);
-        self.start_masked_color_stream(owner);
+        if self.color_enabled {
+            self.start_color_stream(owner);
+        }
+        if self.body_enabled {
+            self.start_body_stream(owner);
+        }
+        if self.masked_color_enabled {
+            self.start_masked_color_stream(owner);
+        }
+        if self.depth_enabled {
+            self.start_depth_stream(owner);
+        }
     }
 
     #[export]
     pub unsafe fn get_color_image(&self, owner: Node) -> Image {
-        self.color_image.new_ref()
+        self.images[&StreamType::Color].new_ref()
     }
 
     #[export]
     pub unsafe fn get_masked_color_image(&self, owner: Node) -> Image {
-        self.masked_color_image.new_ref()
+        self.images[&StreamType::MaskedColor].new_ref()
     }
     #[export]
     pub unsafe fn get_depth_image(&self, owner: Node) -> Image {
-        self.depth_image.new_ref()
+        self.images[&StreamType::Depth].new_ref()
     }
 
     #[export]
@@ -121,7 +88,7 @@ impl AstraController {
 
     #[export]
     unsafe fn update_color(&mut self, owner: Node) {
-        self.handle_update_color(owner);
+        self.handle_update_img(owner, StreamType::Color);
     }
 
     #[export]
@@ -131,12 +98,12 @@ impl AstraController {
 
     #[export]
     unsafe fn update_depth(&mut self, owner: Node) {
-        self.handle_update_depth(owner)
+        self.handle_update_img(owner, StreamType::Depth)
     }
 
     #[export]
     unsafe fn update_masked_color(&mut self, owner: Node) {
-        self.handle_update_masked_color(owner)
+        self.handle_update_img(owner, StreamType::MaskedColor)
     }
 
     pub unsafe fn start_timer(&mut self, mut owner: Node, fps: u32, fn_name: &str) {
@@ -154,5 +121,23 @@ impl AstraController {
         timer.set_wait_time(1.0 / fps as f64);
         owner.add_child(Some(*timer), false);
         timer.start(0.0);
+    }
+    pub unsafe fn start_depth_stream(&mut self, owner: Node) {
+        match self.sensor.start_depth_stream() {
+            Ok(_) => self.start_timer(owner, self.depth_fps, "update_depth"),
+            Err(err) => godot_print!("{:?}", err),
+        }
+    }
+    pub unsafe fn start_color_stream(&mut self, owner: Node) {
+        match self.sensor.start_color_stream() {
+            Ok(_) => self.start_timer(owner, self.color_fps, "update_color"),
+            Err(err) => godot_print!("{:?}", err),
+        }
+    }
+    pub unsafe fn start_masked_color_stream(&mut self, owner: Node) {
+        match self.sensor.start_masked_color_stream() {
+            Ok(_) => self.start_timer(owner, self.masked_color_fps, "update_masked_color"),
+            Err(err) => godot_print!("{:?}", err),
+        }
     }
 }
