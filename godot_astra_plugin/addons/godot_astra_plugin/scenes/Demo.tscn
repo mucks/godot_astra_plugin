@@ -10,6 +10,7 @@
 [node name="Spatial" type="Spatial"]
 
 [node name="Streams" type="Node2D" parent="."]
+editor/display_folded = true
 
 [node name="ColorStreamView" type="Sprite" parent="Streams"]
 position = Vector2( 320, 240 )
@@ -27,6 +28,10 @@ texture = ExtResource( 1 )
 script = ExtResource( 4 )
 
 [node name="AstraController" parent="." instance=ExtResource( 5 )]
+editor/display_folded = true
+color_enabled = true
+masked_color_enabled = true
+body_enabled = true
 
 [node name="Label" type="Label" parent="AstraController"]
 margin_left = 212.0
