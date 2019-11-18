@@ -14,9 +14,11 @@ impl super::AstraController {
                         if let Ok(byte_length) = self.sensor.get_img_byte_length(&img_frame) {
                             let mut byte_array = ByteArray::new();
                             byte_array.resize(byte_length as i32);
+
                             self.sensor
                                 .copy_img_bytes(&img_frame, byte_array.write().as_mut_ptr())
                                 .unwrap();
+
                             self.images.get_mut(&stream_type).unwrap().create_from_data(
                                 width as i64,
                                 height as i64,

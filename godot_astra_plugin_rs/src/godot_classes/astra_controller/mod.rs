@@ -17,7 +17,8 @@ pub struct AstraController {
     body_enabled: bool,
     depth_enabled: bool,
     masked_color_enabled: bool,
-    bodies: VariantArray,
+    frame_index: i32,
+    bodies: Vec<astra::Body>,
     images: HashMap<astra::StreamType, Image>,
 }
 
@@ -29,11 +30,12 @@ impl AstraController {
     unsafe fn _init(_owner: Node) -> Self {
         AstraController {
             sensor: astra::Sensor::new(),
+            frame_index: -1,
             color_fps: 30,
             body_fps: 30,
             masked_color_fps: 30,
             depth_fps: 30,
-            bodies: VariantArray::new(),
+            bodies: Vec::new(),
             color_enabled: false,
             masked_color_enabled: false,
             body_enabled: false,
@@ -82,8 +84,8 @@ impl AstraController {
     }
 
     #[export]
-    pub unsafe fn get_bodies(&self, owner: Node) -> VariantArray {
-        self.bodies.new_ref()
+    pub unsafe fn get_bodies(&self, owner: Node) -> gdnative::Variant {
+        self.bodies.to_variant()
     }
 
     #[export]

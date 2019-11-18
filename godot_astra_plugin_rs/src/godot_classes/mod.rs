@@ -1,2 +1,2 @@
-pub mod astra_controller;
+mod astra_controller;
 pub use astra_controller::AstraController;
