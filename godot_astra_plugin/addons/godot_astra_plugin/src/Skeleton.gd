@@ -6,8 +6,7 @@ var joint_objects: Dictionary
 func _ready():
     pass # Replace with function body.
 
-#average 50usecs
-func _process(delta):
+func get_bodies():
     var bodies = get_node("../AstraController").get_bodies()
     for body in bodies:
         for joint_type in body.joints:
@@ -30,3 +29,7 @@ func _process(delta):
                     joint_objects.erase(joint_type)
 
 
+
+#average 50usecs
+func _process(delta):
+    get_bodies()

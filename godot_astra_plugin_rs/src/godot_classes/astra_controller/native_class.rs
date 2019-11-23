@@ -47,42 +47,5 @@ impl NativeClass for AstraController {
             setter: |this: &mut AstraController, v| this.body_enabled = v,
             usage: PropertyUsage::DEFAULT,
         });
-        builder.add_property(Property {
-            name: "body_fps",
-            default: 30,
-            hint: PropertyHint::Range {
-                range: 0.0..60.0,
-                step: 1.0,
-                slider: true,
-            },
-            getter: |this: &AstraController| this.body_fps,
-            setter: |this: &mut AstraController, v| this.body_fps = v,
-            usage: PropertyUsage::DEFAULT,
-        });
-
-        builder.add_property(Property {
-            name: "color_fps",
-            default: 30,
-            hint: PropertyHint::Range {
-                range: 0.0..60.0,
-                step: 1.0,
-                slider: true,
-            },
-            getter: |this: &AstraController| this.color_fps,
-            setter: |this: &mut AstraController, v| this.color_fps = v,
-            usage: PropertyUsage::DEFAULT,
-        });
-        builder.add_property(Property {
-            name: "masked_color_fps",
-            default: 30,
-            hint: PropertyHint::Range {
-                range: 0.0..60.0,
-                step: 1.0,
-                slider: true,
-            },
-            getter: |this: &AstraController| this.masked_color_fps,
-            setter: |this: &mut AstraController, v| this.masked_color_fps = v,
-            usage: PropertyUsage::DEFAULT,
-        });
     }
 }
